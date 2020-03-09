@@ -89,7 +89,7 @@ def query():
     for target in targets:
         args = ['ts.range', target, int(stime), int(etime)]
         if 'intervalMs' in request and request['intervalMs'] > 0:
-            args += ['avg', int(request['intervalMs'])]
+            args += ['AGGREGATION','avg', int(request['intervalMs'])]
         redis_resp = redis_client.execute_command(*args)
         datapoints = [(float(x2.decode("ascii")), x1) for x1, x2 in redis_resp]
         response.append(dict(target=target, datapoints=datapoints))
