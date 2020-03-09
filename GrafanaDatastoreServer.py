@@ -17,6 +17,7 @@ CORS(app)
 EPOCH = datetime(1970, 1, 1, 0, 0, 0, tzinfo =timezone.utc)
 
 REDIS_POOL = None
+min_aggregation_time_bucket = None
 SCAN_TYPE_SCRIPT = """local cursor, pat, typ, cnt = ARGV[1], ARGV[2], ARGV[3], ARGV[4] or 100
 local rep = {}
 
@@ -88,7 +89,9 @@ def query():
 
     for target in targets:
         args = ['ts.range', target, int(stime), int(etime)]
-        if 'intervalMs' in request and request['intervalMs'] > 0:
+        if min_aggregation_time_bucket is not None:
+            args += ['AGGREGATION', 'avg', int(min_aggregation_time_bucket)]
+        elif 'intervalMs' in request and request['intervalMs'] > 0:
             args += ['AGGREGATION','avg', int(request['intervalMs'])]
         redis_resp = redis_client.execute_command(*args)
         datapoints = [(float(x2.decode("ascii")), x1) for x1, x2 in redis_resp]
@@ -125,14 +128,18 @@ def tag_values():
 
 def main():
     global REDIS_POOL
+    global min_aggregation_time_bucket
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", help="server address to listen to", default="0.0.0.0")
     parser.add_argument("--port", help="port number to listen to", default=8080, type=int)
     parser.add_argument("--redis-server", help="redis server address", default="localhost")
     parser.add_argument("--redis-port", help="redis server port", default=6379, type=int)
     parser.add_argument("--redis-password", help="redis server password", default=None)
+    parser.add_argument("--min-aggregation-time-bucket", help="minimum aggregation time bucket", default=None, type=int)
+
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
+    min_aggregation_time_bucket = args.min_aggregation_time_bucket
 
     try:
         REDIS_POOL = redis.ConnectionPool(host=args.redis_server, port=args.redis_port,password=args.redis_password)
